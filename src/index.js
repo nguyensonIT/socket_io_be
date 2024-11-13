@@ -2,11 +2,15 @@ const express = require('express');
 const http = require('http');
 const setupNotifySocketServer = require('./websocket/setupNotifySocketServer'); // Thay đổi đường dẫn nếu cần
 
+const db = require("./config/db");
+
+db.connect()
+
 const app = express();
 const server = http.createServer(app);
 
 // Cấu hình WebSocket
-const io = setupNotifySocketServer(server);
+setupNotifySocketServer(server);
 
 // Định nghĩa một route đơn giản
 app.get('/', (req, res) => {

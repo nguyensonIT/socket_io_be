@@ -1,41 +1,89 @@
-const axios = require('axios');
-const WebSocket = require('ws');
+
 require('dotenv').config();
 
-const API_URI = process.env.VITE_BASE_URL;
 
-if (!API_URI) {
-  console.error('API_URI is not defined in environment variables.');
-  process.exit(1); // Dừng chương trình nếu không có API_URI
-}
+    // Mô hình trạng thái trong MongoDB
+    const mongoose = require('mongoose');
 
-function setupWebSocketServer(server) {
-  const io = require('socket.io')(server, {
-    cors: { origin: "*" }
-  });
+    const statusSchema = new mongoose.Schema({
+      isOpen: { type: Boolean, required: true },
+      isManualOverride: { type: Boolean, required: true },
+      updatedAt: { type: Date, default: Date.now }
+    });
 
-  io.on('connection', (socket) => {
-    console.log('Client connected');
+    const Status = mongoose.model('Status', statusSchema);
 
-    socket.on('message', async (message) => {
-      io.emit('message', message);
-      try {
-        // Gửi yêu cầu đến server chứa Order
-        const response = await axios.get(`${API_URI}/orders`); // Đảm bảo API_URI hợp lệ
-        const dbData = response.data; // Giả sử dữ liệu trả về là mảng các đơn hàng
-        
-        io.emit('adminEvent', dbData);
-      } catch (error) {
-        console.error('Error fetching data from order server:', error.message || error);
+    async function loadInitialStatus() {
+      const status = await Status.findOne();
+      if (status) {
+        return { isOpen: status.isOpen, isManualOverride: status.isManualOverride };
+      } else {
+        // Nếu chưa có dữ liệu, khởi tạo trạng thái tự động theo giờ
+        const initialStatus = isWithinBusinessHours();
+        await Status.create({ isOpen: initialStatus, isManualOverride: false });
+        return { isOpen: initialStatus, isManualOverride: false };
       }
-    });
+    }
 
-    socket.on('disconnect', () => {
-      console.log('Client disconnected');
-    });
-  });
+    async function saveStatus(isOpen, isManualOverride) {
+      await Status.findOneAndUpdate(
+        {},
+        { isOpen, isManualOverride, updatedAt: new Date() },
+        { upsert: true }
+      );
+    }
 
-  return io;
-}
+    // Server WebSocket với trạng thái được lưu
+    async function setupWebSocketServer(server) {
+      const io = require('socket.io')(server, { cors: { origin: "*" } });
+
+      // Tải trạng thái ban đầu từ database
+      const { isOpen: initialIsOpen, isManualOverride: initialManualOverride } = await loadInitialStatus();
+      let isOpen = initialIsOpen;
+      let isManualOverride = initialManualOverride;
+
+      async function emitStatus() {
+        io.emit('statusOpenDoor', isOpen);
+        await saveStatus(isOpen, isManualOverride); // Lưu vào database
+      }
+
+      setInterval(async () => {
+        const currentStatus = isWithinBusinessHours();
+
+        if (!isManualOverride && currentStatus !== isOpen) {
+          isOpen = currentStatus;
+          await emitStatus();
+        }
+
+        if (isManualOverride && currentStatus === isOpen) {
+          isManualOverride = false;
+          await emitStatus();
+        }
+      }, 60000);
+
+      io.on('connection', (socket) => {
+        console.log('Client connected');
+        socket.emit('statusOpenDoor', isOpen);
+
+        socket.on('toggleOpenDoorStatus', async () => {
+          isOpen = !isOpen;
+          isManualOverride = true;
+          await emitStatus();
+        });
+
+        socket.on('disconnect', () => {
+          console.log('Client disconnected');
+        });
+      });
+
+      return io;
+    }
+
+    function isWithinBusinessHours() {
+      const now = new Date();
+      const hour = now.getHours();
+      return hour >= 9 && hour < 22;
+    }
+
 
 module.exports = setupWebSocketServer;
