@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const http = require('http');
 const setupNotifySocketServer = require('./websocket/setupNotifySocketServer'); // Thay đổi đường dẫn nếu cần
 
@@ -8,6 +9,8 @@ db.connect()
 
 const app = express();
 const server = http.createServer(app);
+
+app.use(cors());
 
 // Cấu hình WebSocket
 setupNotifySocketServer(server);
