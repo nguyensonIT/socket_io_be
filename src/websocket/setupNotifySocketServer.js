@@ -70,6 +70,9 @@ require('dotenv').config();
           isManualOverride = true;
           await emitStatus();
         });
+        socket.on('message',  async(message) => {
+          io.emit('message', message);
+        });
 
         socket.on('disconnect', () => {
           console.log('Client disconnected');
@@ -82,7 +85,11 @@ require('dotenv').config();
     function isWithinBusinessHours() {
       const now = new Date();
       const hour = now.getHours();
-      return hour >= 9 && hour < 22;
+      const minute = now.getMinutes();
+
+      console.log(hour,minute);
+      return (hour > 9 || (hour === 9 && minute >= 0)) && 
+             (hour < 22 || (hour === 22 && minute < 1));
     }
 
 
