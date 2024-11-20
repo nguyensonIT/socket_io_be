@@ -84,13 +84,14 @@ require('dotenv').config();
 
     function isWithinBusinessHours() {
       const now = new Date();
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-
-      console.log(hour,minute);
+      const localNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const hour = localNow.getHours();
+      const minute = localNow.getMinutes();
+      console.log(hour, minute);
       return (hour > 9 || (hour === 9 && minute >= 0)) && 
              (hour < 22 || (hour === 22 && minute < 1));
     }
+    
 
 
 module.exports = setupWebSocketServer;
