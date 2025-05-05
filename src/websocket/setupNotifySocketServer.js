@@ -34,7 +34,12 @@ async function saveStatus(isOpen, isManualOverride) {
 // Server WebSocket với trạng thái được lưu
 async function setupWebSocketServer(server) {
   const io = require("socket.io")(server, {
-    cors: { origin: "*" },
+    cors: {
+      origin: ["https://vuagatuoi.com"],
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+
     path: "/socket.io/",
   });
 
